@@ -1,3 +1,4 @@
 *.exp
 *.lib
 *.exe
+.vscode/settings.json
