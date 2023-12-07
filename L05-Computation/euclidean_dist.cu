@@ -1,26 +1,20 @@
 #include<iostream>
 #include<cuda.h>
 #include <cmath>
-#define BLOCKSIZE 1024
+#define BLOCK_SIZE 1024
 
 using namespace std;
 
-int getNumBlocks(dim3 gridDim) {
-    return gridDim.x * gridDim.y * gridDim.z;
-}
-
-int getNumThreadsPerBlock(dim3 blockDim) {
-    return blockDim.x * blockDim.y * blockDim.z;
-}
-
 __global__ void dkernel(int *vectorX, int *vectorY, float *dist, int N) {
-    int id1 = threadIdx.x, id2 = threadIdx.y;
-    id1 += blockDim.x * blockIdx.x;
-    id2 += blockDim.y * blockIdx.y;
-    if (id1<id2) {
+    int id = blockIdx.x * blockDim.x + threadIdx.x;
+    int id1, id2;
+    id1 = id / N;
+    id2 = id % N;
+    float dist_;
+    if (id<N*N) {
         auto x1 = vectorX[id1], y1 = vectorY[id1], x2 = vectorX[id2], y2 = vectorY[id2];
-        dist[id1 * blockDim.x + id2] = sqrt((float)(pow(x1 - x2, 2) + pow(y1 - y2, 2)));
-        dist[id2 * blockDim.x + id1] = dist[id1 * blockDim.x + id2];
+        dist_ = sqrt((float)(pow(x1 - x2, 2) + pow(y1 - y2, 2)));
+        dist[id] = dist_;
     }
 }
 
@@ -29,14 +23,9 @@ void readVectors(int *vec1, int *vec2, int count);
 
 int main(int nn, char *str[]) {
     unsigned N = atoi(str[1]);
+    unsigned nblocks = ceil((float)(N*N) / BLOCK_SIZE);
 
-    int nthreads = N * N;
-    int nthreads_per_block_x =  nthreads < BLOCKSIZE ? N : BLOCKSIZE;
-    int nthreads_per_block_y = nthreads_per_block_x;
-
-    dim3 blockdims(nthreads_per_block_x,nthreads_per_block_y,1);
-    unsigned nblocks = ceil((float)(nthreads) / (nthreads_per_block_x * nthreads_per_block_y));
-    printf("nblocks = %d\n nthreads=%d\n blockdims=(%d, %d)\n", nblocks, nthreads, nthreads_per_block_x, nthreads_per_block_y);
+    dim3 blockdims(N,1);
 
     int *vectorX, *vectorY, *hvectorX, *hvectorY;
     
@@ -53,12 +42,12 @@ int main(int nn, char *str[]) {
     cudaMalloc(&dist, N * N * sizeof(float));
     hdist = (float *)(malloc(N * N * sizeof(float)));
 
-    dkernel<<<nblocks,blockdims>>>(vectorX, vectorY, dist, N);
+    dkernel<<<nblocks,BLOCK_SIZE>>>(vectorX, vectorY, dist, N);
     cudaMemcpy(hdist, dist, N * N * sizeof(float), cudaMemcpyDeviceToHost);
 
-    for (unsigned ii=0; ii<N; ii++) {
-        for (unsigned jj=0; jj<N; jj++) {
-            printf("%5.2f ", hdist[ii * N + jj]);
+    for (unsigned ii=0; ii<N; ii+=1) {
+        for (unsigned jj=0; jj<N; jj+=1) {
+            printf("%6.2f ", hdist[ii * N + jj]);
         }
         printf("\n");
     }
