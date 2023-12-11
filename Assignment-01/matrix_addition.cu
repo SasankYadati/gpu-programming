@@ -39,8 +39,8 @@ int main() {
         printf("\n");
     }
 
-    num_threads_per_block = n < BLOCKSIZE ? n : BLOCKSIZE;
-    dim3 blockDims(num_threads_per_block, num_threads_per_block);
+    num_blocks = ceil((float)n/(BLOCKSIZE*BLOCKSIZE));
+    dim3 blockDims(BLOCKSIZE, BLOCKSIZE);
 
     per_column_kernel<<<num_blocks, blockDims>>>(m, n, matrixA, matrixB, matrixC);
     
